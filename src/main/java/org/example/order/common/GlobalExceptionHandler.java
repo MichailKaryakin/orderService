@@ -1,6 +1,7 @@
 package org.example.order.common;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.example.order.dto.ErrorResponse;
 import org.example.order.exception.IllegalOrderStatusException;
 import org.example.order.exception.OrderNotFoundException;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(OrderNotFoundException.class)
@@ -41,7 +43,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorResponse handleGeneric(HttpServletRequest request) {
+    public ErrorResponse handleGeneric(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception at {}: ", request.getRequestURI(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request.getRequestURI());
     }
 

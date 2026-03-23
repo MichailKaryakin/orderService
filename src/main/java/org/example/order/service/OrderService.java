@@ -1,6 +1,7 @@
 package org.example.order.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.order.dto.*;
 import org.example.order.entity.Address;
 import org.example.order.entity.Order;
@@ -18,14 +19,18 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class OrderService {
 
     private final OrderRepository orderRepository;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+        log.info("Creating order for userId={}, items={}", request.userId(), request.items().size());
+
         List<OrderItem> items = request.items().stream()
                 .map(this::toOrderItem)
                 .toList();
@@ -46,18 +51,25 @@ public class OrderService {
         items.forEach(item -> item.setOrder(order));
         order.getItems().addAll(items);
 
-        return toResponse(orderRepository.save(order));
+        OrderResponse response = toResponse(orderRepository.save(order));
+        log.info("Order created: id={}, number={}, total={} {}",
+                response.id(), response.orderNumber(), response.totalAmount(), response.currency());
+        return response;
     }
 
-    @Transactional(readOnly = true)
     public OrderResponse getById(UUID id) {
+        log.debug("Fetching order by id={}", id);
         return orderRepository.findById(id)
                 .map(this::toResponse)
-                .orElseThrow(() -> new OrderNotFoundException(id));
+                .orElseThrow(() -> {
+                    logOrderNotFound(id);
+                    return new OrderNotFoundException(id);
+                });
     }
 
-    @Transactional(readOnly = true)
     public Page<OrderResponse> getByUser(UUID userId, OrderStatus status, Pageable pageable) {
+        log.debug("Fetching orders for userId={}, status={}, page={}", userId, status, pageable.getPageNumber());
+
         Page<Order> page = status != null
                 ? orderRepository.findAllByUserIdAndStatus(userId, status, pageable)
                 : orderRepository.findAllByUserId(userId, pageable);
@@ -67,32 +79,48 @@ public class OrderService {
 
     @Transactional
     public OrderResponse cancelOrder(UUID id) {
+        log.info("Cancelling order id={}", id);
+
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new OrderNotFoundException(id));
+                .orElseThrow(() -> {
+                    logOrderNotFound(id);
+                    return new OrderNotFoundException(id);
+                });
 
         if (order.getStatus() == OrderStatus.SHIPPED || order.getStatus() == OrderStatus.PAID) {
+            log.warn("Cannot cancel order id={}, current status={}", id, order.getStatus());
             throw new IllegalOrderStatusException(
                     "Cannot cancel order in status: " + order.getStatus()
             );
         }
 
         order.setStatus(OrderStatus.CANCELLED);
-        return toResponse(orderRepository.save(order));
+        OrderResponse response = toResponse(orderRepository.save(order));
+        log.info("Order cancelled: id={}", id);
+        return response;
     }
 
     @Transactional
     public OrderResponse confirmPayment(UUID id) {
+        log.info("Confirming payment for order id={}", id);
+
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new OrderNotFoundException(id));
+                .orElseThrow(() -> {
+                    logOrderNotFound(id);
+                    return new OrderNotFoundException(id);
+                });
 
         if (order.getStatus() != OrderStatus.RESERVED) {
+            log.warn("Cannot confirm payment for order id={}, current status={}", id, order.getStatus());
             throw new IllegalOrderStatusException(
                     "Cannot confirm payment for order in status: " + order.getStatus()
             );
         }
 
         order.setStatus(OrderStatus.PAID);
-        return toResponse(orderRepository.save(order));
+        OrderResponse response = toResponse(orderRepository.save(order));
+        log.info("Payment confirmed: id={}, new status=PAID", id);
+        return response;
     }
 
     private OrderItem toOrderItem(OrderItemRequest req) {
@@ -140,5 +168,9 @@ public class OrderService {
 
     private String generateOrderNumber() {
         return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private static void logOrderNotFound(UUID id) {
+        log.warn("Order not found: id={}", id);
     }
 }
