@@ -9,7 +9,10 @@ import org.example.order.entity.OrderItem;
 import org.example.order.enums.OrderStatus;
 import org.example.order.exception.IllegalOrderStatusException;
 import org.example.order.exception.OrderNotFoundException;
+import org.example.order.kafka.dto.OrderStockItem;
+import org.example.order.kafka.dto.OrderStockReserveEvent;
 import org.example.order.repository.OrderRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ import java.util.UUID;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -51,10 +55,40 @@ public class OrderService {
         items.forEach(item -> item.setOrder(order));
         order.getItems().addAll(items);
 
-        OrderResponse response = toResponse(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+
+        List<OrderStockItem> stockItems = items.stream()
+                .map(i -> new OrderStockItem(i.getProductId(), i.getSku(), i.getQuantity()))
+                .toList();
+
+        eventPublisher.publishEvent(
+                OrderStockReserveEvent.of(saved.getId(), saved.getUserId(), stockItems)
+        );
+
+        OrderResponse response = toResponse(saved);
         log.info("Order created: id={}, number={}, total={} {}",
                 response.id(), response.orderNumber(), response.totalAmount(), response.currency());
         return response;
+    }
+
+    @Transactional
+    public void markAsReserved(UUID orderId) {
+        log.info("Marking order as RESERVED: id={}", orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        order.setStatus(OrderStatus.RESERVED);
+        orderRepository.save(order);
+        log.info("Order marked as RESERVED: id={}", orderId);
+    }
+
+    @Transactional
+    public void markAsFailed(UUID orderId) {
+        log.info("Marking order as FAILED: id={}", orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        order.setStatus(OrderStatus.FAILED);
+        orderRepository.save(order);
+        log.info("Order marked as FAILED: id={}", orderId);
     }
 
     public OrderResponse getById(UUID id) {
