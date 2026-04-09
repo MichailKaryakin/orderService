@@ -2,6 +2,7 @@ package org.example.order.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.order.cache.OrderCacheService;
 import org.example.order.dto.*;
 import org.example.order.entity.Address;
 import org.example.order.entity.Order;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -30,6 +32,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final OrderCacheService cacheService;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -66,6 +69,8 @@ public class OrderService {
         );
 
         OrderResponse response = toResponse(saved);
+        cacheService.putOrder(response);
+
         log.info("Order created: id={}, number={}, total={} {}",
                 response.id(), response.orderNumber(), response.totalAmount(), response.currency());
         return response;
@@ -77,7 +82,9 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         order.setStatus(OrderStatus.RESERVED);
-        orderRepository.save(order);
+        OrderResponse response = toResponse(orderRepository.save(order));
+        cacheService.evictOrder(orderId);
+        cacheService.putOrder(response);
         log.info("Order marked as RESERVED: id={}", orderId);
     }
 
@@ -87,22 +94,31 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         order.setStatus(OrderStatus.FAILED);
-        orderRepository.save(order);
+        OrderResponse response = toResponse(orderRepository.save(order));
+        cacheService.evictOrder(orderId);
+        cacheService.putOrder(response);
         log.info("Order marked as FAILED: id={}", orderId);
     }
 
     public OrderResponse getById(UUID id) {
-        log.debug("Fetching order by id={}", id);
-        return orderRepository.findById(id)
+        Optional<OrderResponse> cached = cacheService.getOrder(id);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        OrderResponse response = orderRepository.findById(id)
                 .map(this::toResponse)
                 .orElseThrow(() -> {
                     logOrderNotFound(id);
                     return new OrderNotFoundException(id);
                 });
+
+        cacheService.putOrder(response);
+        return response;
     }
 
     public Page<OrderResponse> getByUser(UUID userId, OrderStatus status, Pageable pageable) {
-        log.debug("Fetching orders for userId={}, status={}, page={}", userId, status, pageable.getPageNumber());
+        log.debug("Fetching orders for userId={}, status={}", userId, status);
 
         Page<Order> page = status != null
                 ? orderRepository.findAllByUserIdAndStatus(userId, status, pageable)
@@ -130,6 +146,7 @@ public class OrderService {
 
         order.setStatus(OrderStatus.CANCELLED);
         OrderResponse response = toResponse(orderRepository.save(order));
+        cacheService.evictOrder(id);
         log.info("Order cancelled: id={}", id);
         return response;
     }
@@ -153,6 +170,7 @@ public class OrderService {
 
         order.setStatus(OrderStatus.PAID);
         OrderResponse response = toResponse(orderRepository.save(order));
+        cacheService.evictOrder(id);
         log.info("Payment confirmed: id={}, new status=PAID", id);
         return response;
     }
