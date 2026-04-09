@@ -118,8 +118,6 @@ public class OrderService {
     }
 
     public Page<OrderResponse> getByUser(UUID userId, OrderStatus status, Pageable pageable) {
-        log.debug("Fetching orders for userId={}, status={}", userId, status);
-
         Page<Order> page = status != null
                 ? orderRepository.findAllByUserIdAndStatus(userId, status, pageable)
                 : orderRepository.findAllByUserId(userId, pageable);
