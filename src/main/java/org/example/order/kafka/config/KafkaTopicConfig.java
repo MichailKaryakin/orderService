@@ -1,4 +1,4 @@
-package org.example.order.kafka;
+package org.example.order.kafka.config;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.context.annotation.Bean;
@@ -19,6 +19,14 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic stockReserveResultTopic() {
         return TopicBuilder.name("stock.reserve.result")
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic stockReserveResultDltTopic() {
+        return TopicBuilder.name("stock.reserve.result.DLT")
                 .partitions(3)
                 .replicas(1)
                 .build();
