@@ -3,7 +3,9 @@ package org.example.order.common;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.example.order.dto.ErrorResponse;
+import org.example.order.exception.CatalogServiceUnavailableException;
 import org.example.order.exception.IllegalOrderStatusException;
+import org.example.order.exception.InsufficientStockException;
 import org.example.order.exception.OrderNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
@@ -46,6 +48,18 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception at {}: ", request.getRequestURI(), ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request.getRequestURI());
+    }
+
+    @ExceptionHandler(CatalogServiceUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse handleCatalogUnavailable(CatalogServiceUnavailableException ex, HttpServletRequest req) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), req.getRequestURI());
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+    public ErrorResponse handleInsufficientStock(InsufficientStockException ex, HttpServletRequest req) {
+        return build(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), req.getRequestURI());
     }
 
     private ErrorResponse build(HttpStatus status, String message, String path) {

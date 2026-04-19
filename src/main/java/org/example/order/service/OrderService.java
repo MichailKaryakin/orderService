@@ -3,12 +3,15 @@ package org.example.order.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.order.cache.OrderCacheService;
+import org.example.order.client.CatalogClient;
+import org.example.order.client.dto.StockResponse;
 import org.example.order.dto.*;
 import org.example.order.entity.Address;
 import org.example.order.entity.Order;
 import org.example.order.entity.OrderItem;
 import org.example.order.enums.OrderStatus;
 import org.example.order.exception.IllegalOrderStatusException;
+import org.example.order.exception.InsufficientStockException;
 import org.example.order.exception.OrderNotFoundException;
 import org.example.order.kafka.dto.OrderStockItem;
 import org.example.order.kafka.dto.OrderStockReserveEvent;
@@ -33,10 +36,18 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final OrderCacheService cacheService;
+    private final CatalogClient catalogClient;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
         log.info("Creating order for userId={}, items={}", request.userId(), request.items().size());
+
+        for (OrderItemRequest item : request.items()) {
+            StockResponse stock = catalogClient.getStock(item.productId());
+            if (stock.quantity() - stock.reserved() < item.quantity()) {
+                throw new InsufficientStockException(item.productId(), item.sku(), item.quantity());
+            }
+        }
 
         List<OrderItem> items = request.items().stream()
                 .map(this::toOrderItem)
