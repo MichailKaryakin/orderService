@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://order-db:5432/order_db
+    username: postgres
+    password: BYC-eM5-Mzw-Mp8
+  kafka:
+    bootstrap-servers: kafka:9092
+  data:
+    redis:
+      host: redis
+      port: 6379
+      timeout: 2000ms
+
+catalog:
+  service:
+    url: http://catalog:8081
