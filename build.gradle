@@ -71,9 +71,31 @@ dependencies {
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.testcontainers:kafka'
+    testImplementation 'com.h2database:h2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+sourceSets {
+    integrationTest {
+        java.srcDir 'src/test/java'
+        resources.srcDir 'src/test/resources'
+        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+tasks.register('integrationTest', Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IntegrationTest*'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    exclude '**/*IntegrationTest*'
 }
