@@ -82,6 +82,7 @@ services:
   order:
     build: .
     container_name: order-service
+    profiles: [ "app" ]
     ports:
       - "8082:8082"
     environment:
@@ -91,7 +92,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: prod
     depends_on:
       postgres:
         condition: service_healthy

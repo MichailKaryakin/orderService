@@ -22,7 +22,7 @@ public class SecurityConfig {
     private final Http401UnauthorizedEntryPoint unauthorizedEntryPoint;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s ->
@@ -33,7 +33,10 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/actuator/**",
                                 "/v3/api-docs/**",
-                                "/swagger-ui/**"
+                                "/v3/api-docs.yaml",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/webjars/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/orders/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders/**").authenticated()

@@ -77,25 +77,30 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-}
 
-sourceSets {
-    integrationTest {
-        java.srcDir 'src/test/java'
-        resources.srcDir 'src/test/resources'
-        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
-        runtimeClasspath += output + compileClasspath
-    }
+    exclude '**/*IntegrationTest*'
 }
 
 tasks.register('integrationTest', Test) {
+    description = 'Runs integration tests.'
+    group = 'verification'
+
     useJUnitPlatform()
+
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
+
     include '**/*IntegrationTest*'
+
+    shouldRunAfter test
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-    exclude '**/*IntegrationTest*'
+tasks.named('check') {
+    dependsOn tasks.named('integrationTest')
+}
+
+tasks.withType(Test).configureEach {
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
 }
